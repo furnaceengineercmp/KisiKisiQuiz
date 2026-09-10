@@ -125,7 +125,6 @@ async function init() {
     info.textContent = `${data.items.length} soal - ${Object.keys(grouped).length} kategori`;
 
     content.innerHTML = '';
-    let first = true;
     Object.keys(grouped).forEach(kat => {
       const section = document.createElement('div');
       section.className = 'cat-section';
@@ -135,15 +134,13 @@ async function init() {
       head.innerHTML = `<span>${escapeHtml(kat)}</span><span class="count">${grouped[kat].length} soal</span>`;
 
       const body = document.createElement('div');
-      body.className = 'cat-body' + (first ? ' open' : '');
-      first = false;
+      body.className = 'cat-body';
 
       grouped[kat].forEach(item => {
         const qdiv = document.createElement('div');
         qdiv.className = 'qitem';
         const savedVal = answers[item.no] || '';
         qdiv.innerHTML = `
-          <div class="qno">Soal No. ${item.no}</div>
           <div class="qtext">${escapeHtml(item.soal)}</div>
           <textarea class="answer" placeholder="Tulis perkiraan jawaban Anda di sini (opsional, hanya tersimpan di browser ini)...">${escapeHtml(savedVal)}</textarea>
           <div class="saved-tag">Tersimpan di browser ini ✓</div>
