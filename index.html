@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kisi-Kisi Ujian Operator Furnace</title>
+<style>
+  :root{
+    --navy:#0f2942; --navy2:#173a5e; --amber:#f5a623; --amber-dark:#d98c0f;
+    --bg:#eef2f6; --card:#ffffff; --muted:#65758a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; background:linear-gradient(160deg,var(--navy) 0%, var(--navy2) 45%, #2a5580 100%);
+    font-family:'Segoe UI',Roboto,Arial,sans-serif; color:#1c2a3a; padding:24px 12px;
+  }
+  .wrap{max-width:760px; margin:0 auto;}
+  .header{text-align:center; color:#fff; margin-bottom:18px;}
+  .header h1{margin:0 0 4px; font-size:1.4rem;}
+  .header p{margin:0; color:#cfe0f0; font-size:.85rem;}
+
+  .toolbar{
+    display:flex; gap:8px; justify-content:space-between; align-items:center;
+    background:var(--card); border-radius:12px; padding:10px 14px; margin-bottom:14px;
+    box-shadow:0 8px 20px rgba(0,0,0,.2); font-size:.8rem; color:var(--muted);
+  }
+  .toolbar button{
+    border:none; background:#fdecec; color:#c0392b; padding:7px 12px; border-radius:7px;
+    font-size:.78rem; font-weight:600; cursor:pointer;
+  }
+  .toolbar button:hover{background:#fbd7d7;}
+
+  .cat-section{margin-bottom:14px; background:var(--card); border-radius:12px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,.15);}
+  .cat-head{
+    padding:13px 16px; background:var(--navy2); color:#fff; font-weight:700; font-size:.92rem;
+    cursor:pointer; display:flex; justify-content:space-between; align-items:center;
+  }
+  .cat-head .count{font-weight:400; font-size:.75rem; color:#cfe0f0;}
+  .cat-body{display:none; padding:4px 16px 12px;}
+  .cat-body.open{display:block;}
+
+  .qitem{padding:12px 0; border-bottom:1px solid #eef1f5;}
+  .qitem:last-child{border-bottom:none;}
+  .qno{font-size:.72rem; font-weight:700; color:var(--amber-dark); text-transform:uppercase;}
+  .qtext{font-size:.92rem; margin:4px 0 8px; line-height:1.45;}
+  textarea.answer{
+    width:100%; min-height:54px; border:1.5px solid #d6dfe8; border-radius:8px; padding:8px 10px;
+    font-size:.85rem; font-family:inherit; resize:vertical;
+  }
+  textarea.answer:focus{outline:none; border-color:var(--amber);}
+  .saved-tag{font-size:.68rem; color:#1e8e5a; margin-top:3px; height:14px; opacity:0; transition:opacity .3s;}
+  .saved-tag.show{opacity:1;}
+
+  .empty{text-align:center; color:#fff; padding:40px 0; font-size:.9rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>Kisi-Kisi Ujian Operator Furnace</h1>
+    <p>Baca soal, coba tulis dulu perkiraan jawaban Anda sebelum ujian sungguhan</p>
+  </div>
+
+  <div class="toolbar">
+    <span id="toolbarInfo">Memuat...</span>
+    <button id="resetBtn" type="button">Hapus semua catatan saya</button>
+  </div>
+
+  <div id="content"></div>
+</div>
+
+<script>
+/* Ganti kalau URL Web App berubah */
+const API_URL = 'https://script.google.com/macros/s/AKfycbymt5ugbmql8_Aw3t5AA0DUKKSfNXQtJNv3DZw8iyUD1_KvZi4SJQrfGbep6xFox3k/exec';
+const STORAGE_KEY = 'kisikisi_jawaban_v1';
+
+function loadAnswers() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+function saveAnswers(obj) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); } catch (e) { /* storage penuh/disabled, abaikan */ }
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.innerText = str;
+  return d.innerHTML;
+}
+
+let answers = loadAnswers();
+let saveTimer = null;
+
+function debouncedSave(no, value, tagEl) {
+  answers[no] = value;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveAnswers(answers);
+    if (tagEl) {
+      tagEl.classList.add('show');
+      setTimeout(() => tagEl.classList.remove('show'), 1200);
+    }
+  }, 400);
+}
+
+async function init() {
+  const content = document.getElementById('content');
+  const info = document.getElementById('toolbarInfo');
+  try {
+    const res = await fetch(`${API_URL}?action=kisikisi`);
+    const data = await res.json();
+    if (!data.success || !data.items || data.items.length === 0) {
+      content.innerHTML = '<div class="empty">Belum ada kisi-kisi tersedia.</div>';
+      info.textContent = '0 soal';
+      return;
+    }
+
+    const grouped = {};
+    data.items.forEach(item => {
+      const kat = item.kategori || 'Lainnya';
+      if (!grouped[kat]) grouped[kat] = [];
+      grouped[kat].push(item);
+    });
+
+    info.textContent = `${data.items.length} soal - ${Object.keys(grouped).length} kategori`;
+
+    content.innerHTML = '';
+    let first = true;
+    Object.keys(grouped).forEach(kat => {
+      const section = document.createElement('div');
+      section.className = 'cat-section';
+
+      const head = document.createElement('div');
+      head.className = 'cat-head';
+      head.innerHTML = `<span>${escapeHtml(kat)}</span><span class="count">${grouped[kat].length} soal</span>`;
+
+      const body = document.createElement('div');
+      body.className = 'cat-body' + (first ? ' open' : '');
+      first = false;
+
+      grouped[kat].forEach(item => {
+        const qdiv = document.createElement('div');
+        qdiv.className = 'qitem';
+        const savedVal = answers[item.no] || '';
+        qdiv.innerHTML = `
+          <div class="qno">Soal No. ${item.no}</div>
+          <div class="qtext">${escapeHtml(item.soal)}</div>
+          <textarea class="answer" placeholder="Tulis perkiraan jawaban Anda di sini (opsional, hanya tersimpan di browser ini)...">${escapeHtml(savedVal)}</textarea>
+          <div class="saved-tag">Tersimpan di browser ini ✓</div>
+        `;
+        const textarea = qdiv.querySelector('textarea');
+        const tag = qdiv.querySelector('.saved-tag');
+        textarea.addEventListener('input', () => debouncedSave(item.no, textarea.value, tag));
+        body.appendChild(qdiv);
+      });
+
+      head.addEventListener('click', () => body.classList.toggle('open'));
+
+      section.appendChild(head);
+      section.appendChild(body);
+      content.appendChild(section);
+    });
+  } catch (err) {
+    content.innerHTML = '<div class="empty">Gagal memuat kisi-kisi. Cek koneksi internet Anda.</div>';
+    info.textContent = '';
+  }
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('Hapus semua catatan jawaban Anda di halaman ini? Tindakan ini tidak bisa dibatalkan.')) {
+    answers = {};
+    saveAnswers(answers);
+    document.querySelectorAll('textarea.answer').forEach(t => t.value = '');
+  }
+});
+
+init();
+</script>
+</body>
+</html>
